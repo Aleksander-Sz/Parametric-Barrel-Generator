@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="ParametricBarrelGenerator/ParametricBarrelGenerator.vcxproj" Id="d9f147c8-a122-4d42-9cbe-8af591da8b29" />
+</Solution>
