@@ -40,14 +40,20 @@ int main()
     int caliber;
 
     std::cout << "Welcome to the parametric barrel generation system.\n";
-    std::cout << "Input the desired caliber: ";
+    std::cout << "The available calibers are:\n1. 5.56 x 45 mm NATO\n2. 7.62 x 51 mm NATO\n3. 12.7 x 99 mm NATO\n";
+    std::cout << "Input the desired caliber (1, 2 or 3): ";
     std::cin >> caliber;
-    std::cout << "Input the desired rifling lenght: ";
-    std::cin >> riflingLenght;
+    if (caliber < 1 || caliber>3)
+    {
+        std::cout << "Error, you entered an incorrect value!\n";
+        return 0;
+    }
+
+    double muzzleBarrelR1 = 0.0, muzzleBarrelR2 = 0.0, muzzleTaperLenght = 0.0;
+    double chamberMainConeR1 = 0.0, chamberMainConeR2 = 0.0, chamberMainConeLenght = 0.0, chamberTaperR2 = 0.0, chamberTaperLenght = 0.0, chamberFirstCylinderLenght = 0.0, chamberSecondCylinderR = 0.0, chamberSecondCylinderLenght = 0.0;
+    double riflingOuterRadius = 0.0;
     
-    double muzzleBarrelR1, muzzleBarrelR2, muzzleTaperLenght;
-    double chamberMainConeR1, chamberMainConeR2, chamberMainConeLenght, chamberTaperR2, chamberTaperLenght, chamberFirstCylinderLenght, chamberSecondCylinderR, chamberSecondCylinderLenght;
-    double riflingOuterRadius;
+    double minRiflingLenght = 50.0;
 
     //temporarily only 5.56:
     switch (caliber)
@@ -65,11 +71,55 @@ int main()
         chamberSecondCylinderR = 2.845;
         chamberSecondCylinderLenght = 1.45;
 
-        muzzleTaperLenght = riflingLenght + 15.0 - chamberMainConeLenght - chamberTaperLenght - chamberFirstCylinderLenght - chamberSecondCylinderLenght;
-
         riflingOuterRadius = 2.845;
         break;
+    case 2: // 7.62
+        muzzleBarrelR1 = 15.0;
+        muzzleBarrelR2 = 10.0;
+
+        chamberMainConeR1 = 6.0;
+        chamberMainConeR2 = 5.765;
+        chamberMainConeLenght = 43.5;
+        chamberTaperR2 = 4.36;
+        chamberTaperLenght = 3.86;
+        chamberFirstCylinderLenght = 51.18 - chamberMainConeLenght - chamberTaperLenght;
+        chamberSecondCylinderR = 3.925;
+        chamberSecondCylinderLenght = 3.0;
+        
+        riflingOuterRadius = 3.96;
+        break;
+    case 3: // 12.7
+        muzzleBarrelR1 = 25.0;
+        muzzleBarrelR2 = 15.0;
+
+        chamberMainConeR1 = 10.21;
+        chamberMainConeR2 = 9.07;
+        chamberMainConeLenght = 76.34;
+        chamberTaperR2 = 7.11;
+        chamberTaperLenght = 6.96;
+        chamberFirstCylinderLenght = 99.31 - chamberMainConeLenght - chamberTaperLenght;
+        chamberSecondCylinderR = 6.98;
+        chamberSecondCylinderLenght = 4.0;
+
+        riflingOuterRadius = 7.05;
+        
+        minRiflingLenght = 50.0;
+        break;
     }
+
+    std::cout << "Input the desired rifling lenght in milimeters (" << minRiflingLenght << ".0 - 1500.0): ";
+    std::cin >> riflingLenght;
+    if (riflingLenght < minRiflingLenght || riflingLenght > 1500.0)
+    {
+        std::cout << "Error, you entered an incorrect value!\n";
+        return 0;
+    }
+
+    muzzleTaperLenght = riflingLenght - 15.0 + chamberMainConeLenght + chamberTaperLenght + chamberFirstCylinderLenght + chamberSecondCylinderLenght;
+    
+    std::string filename;
+    std::cout << "File name (no extension): ";
+    std::cin >> filename;
 
     TopoDS_Shape muzzle =
         BRepPrimAPI_MakeCone(muzzleBarrelR1, muzzleBarrelR2, muzzleTaperLenght).Shape();
@@ -173,8 +223,10 @@ int main()
 
     writer.Transfer(barrel, STEPControl_AsIs);
 
+    filename += ".step";
+    const char* filenameBuffer = filename.c_str();
     IFSelect_ReturnStatus status =
-        writer.Write("barrel.step");
+        writer.Write(filenameBuffer);
 
     if (status == IFSelect_RetDone)
     {
@@ -182,7 +234,7 @@ int main()
     }
     else
     {
-        std::cout << "Export failed.\n";
+        std::cout << "\033[31mExport failed, you probably gave an incorrect filename.\033[0m\n";
     }
 
     return 0;
