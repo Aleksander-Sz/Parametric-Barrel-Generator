@@ -3,6 +3,7 @@
 #include <BRepPrimAPI_MakeCone.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepAlgoAPI_Section.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Dir.hxx>
@@ -17,6 +18,7 @@
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS.hxx>
+#include <TopExp_Explorer.hxx>
 #include <STEPControl_Writer.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
@@ -26,6 +28,8 @@
 #include <GC_MakeSegment.hxx>
 #include <Geom_Plane.hxx>
 #include <gp_Pln.hxx>
+#include <BRep_Tool.hxx>
+#include <fstream>
 
 #include <cmath>
 #include <Precision.hxx>
@@ -102,8 +106,6 @@ int main()
         chamberSecondCylinderLenght = 4.0;
 
         riflingOuterRadius = 7.05;
-        
-        minRiflingLenght = 50.0;
         break;
     }
 
@@ -223,8 +225,8 @@ int main()
 
     writer.Transfer(barrel, STEPControl_AsIs);
 
-    filename += ".step";
-    const char* filenameBuffer = filename.c_str();
+    std::string filenameA = filename + ".step";
+    const char* filenameBuffer = filenameA.c_str();
     IFSelect_ReturnStatus status =
         writer.Write(filenameBuffer);
 
@@ -236,6 +238,78 @@ int main()
     {
         std::cout << "\033[31mExport failed, you probably gave an incorrect filename.\033[0m\n";
     }
+
+    // Now the .svg file
+
+    gp_Pln sectionPlane(
+        gp_Pnt(0, 0, 0),
+        gp_Dir(0, 1, 0)); // XZ plane
+
+    BRepAlgoAPI_Section section(barrel, sectionPlane);
+    section.Build();
+
+    TopoDS_Shape sectionShape = section.Shape();
+
+    filename += ".svg";
+    filenameBuffer = filename.c_str();
+    std::ofstream svgFile(filenameBuffer);
+    if (!svgFile.is_open())
+    {
+        std::cout << "\033[31mError, failed to create the .svg file!\033[0m\n";
+        return 0;
+    }
+    svgFile
+        << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
+        << "width=\"2000\" height=\"500\" "
+        << "viewBox=\"0 -20 1600 40\">\n";
+
+    for (TopExp_Explorer exp(sectionShape, TopAbs_EDGE);
+        exp.More();
+        exp.Next())
+    {
+        TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+
+        double first, last;
+
+        Handle(Geom_Curve) curve =
+            BRep_Tool::Curve(edge, first, last);
+
+        svgFile << "<path d=\"";
+
+        bool firstPoint = true;
+
+        for (int i = 0; i <= 250; ++i)
+        {
+            double t =
+                first + (last - first) * i / 250.0;
+
+            gp_Pnt p;
+            curve->D0(t, p);
+
+            double x = p.Z();   // barrel length
+            double y = -p.X();  // invert Y for SVG
+
+            if (firstPoint)
+            {
+                svgFile << "M " << x << " " << y;
+                firstPoint = false;
+            }
+            else
+            {
+                svgFile << " L " << x << " " << y;
+            }
+        }
+        svgFile << "\" "
+            << "fill=\"none\" "
+            << "stroke=\"black\" "
+            << "stroke-width=\"0.8\"/>\n";
+    }
+
+    svgFile << "</svg>";
+    svgFile.close();
+
+    std::cout << "SVG exported.\n";
 
     return 0;
 }
