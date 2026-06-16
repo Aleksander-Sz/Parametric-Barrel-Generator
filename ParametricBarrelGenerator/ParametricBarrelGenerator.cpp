@@ -136,7 +136,7 @@ int main()
     TopoDS_Face profile = mkFace.Face();
 
     int sections = 36; // number of intermediate sections
-    double totalTurns = 2.0; // total revolutions over the length
+    double totalTurns = riflingLenght / 177.8; // total revolutions over the length
     double totalTwist = totalTurns * 2.0 * M_PI;
 
     BRepOffsetAPI_ThruSections thru(true, false, Precision::Confusion());
