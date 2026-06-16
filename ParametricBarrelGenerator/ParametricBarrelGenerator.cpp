@@ -31,6 +31,11 @@
 #include <BRep_Tool.hxx>
 #include <fstream>
 
+#include <HLRBRep_Algo.hxx>
+#include <HLRBRep_HLRToShape.hxx>
+#include <HLRAlgo_Projector.hxx>
+#include <BRepAdaptor_Curve.hxx>
+
 #include <cmath>
 #include <Precision.hxx>
 
@@ -59,6 +64,8 @@ int main()
     
     double minRiflingLenght = 50.0;
 
+    std::string caliberText;
+
     //temporarily only 5.56:
     switch (caliber)
     {
@@ -76,6 +83,8 @@ int main()
         chamberSecondCylinderLenght = 1.45;
 
         riflingOuterRadius = 2.845;
+
+        caliberText = "5.56 mm";
         break;
     case 2: // 7.62
         muzzleBarrelR1 = 15.0;
@@ -91,6 +100,8 @@ int main()
         chamberSecondCylinderLenght = 3.0;
         
         riflingOuterRadius = 3.96;
+
+        caliberText = "7.62 mm";
         break;
     case 3: // 12.7
         muzzleBarrelR1 = 25.0;
@@ -106,6 +117,8 @@ int main()
         chamberSecondCylinderLenght = 4.0;
 
         riflingOuterRadius = 7.05;
+
+        caliberText = "12.7 mm";
         break;
     }
 
@@ -239,6 +252,8 @@ int main()
         std::cout << "\033[31mExport failed, you probably gave an incorrect filename.\033[0m\n";
     }
 
+    std::cout << "\033[33mGenerating the .svg files now, be patient...\033[0m\n";
+
     // Now the .svg file
 
     gp_Pln sectionPlane(
@@ -261,8 +276,25 @@ int main()
     svgFile
         << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
-        << "width=\"2000\" height=\"500\" "
-        << "viewBox=\"0 -20 1600 40\">\n";
+        << "width=\"" << (int)muzzleTaperLenght + 70 << "\" height=\"" << (int)muzzleBarrelR1 * 2 + 20 << "\" "
+        << "viewBox=\"-10 " << -(int)(muzzleBarrelR1 + 10) << " " << (int)muzzleTaperLenght + 70 << " " << (int)muzzleBarrelR1 * 2 + 20 << "\">\n";
+
+    // Arrow definitions
+    svgFile << "<defs>\n";
+
+    svgFile << "<marker id=\"arrow\" markerWidth=\"6\" markerHeight=\"6\" "
+        << "refX=\"6\" refY=\"3\" orient=\"auto-start-reverse\" "
+        << "markerUnits=\"strokeWidth\">\n";
+
+    svgFile << "  <path d=\"M0,0 L6,3 L0,6 z\" fill=\"black\" />\n";
+    svgFile << "</marker>\n";
+
+    svgFile << "</defs>\n";
+
+    svgFile << "<style>\n";
+    svgFile << "text { font-family: monospace; }\n";
+    svgFile << "line { shape-rendering: crispEdges; }\n";
+    svgFile << "</style>\n";
 
     for (TopExp_Explorer exp(sectionShape, TopAbs_EDGE);
         exp.More();
@@ -305,6 +337,100 @@ int main()
             << "stroke=\"black\" "
             << "stroke-width=\"0.8\"/>\n";
     }
+
+    // Now behind the cutting plane
+
+    // cut the barrel in half
+
+    TopoDS_Shape box =
+        BRepPrimAPI_MakeBox(gp_Pnt(100, -100, 0), gp_Pnt(-100, 0, 2000));
+    barrel = BRepAlgoAPI_Cut(barrel, box);
+
+    Handle(HLRBRep_Algo) hlr = new HLRBRep_Algo();
+
+    gp_Dir viewDir(0, 1, 0);
+    HLRAlgo_Projector projector(
+        gp_Ax2(gp_Pnt(0, 0, 0), viewDir));
+
+    hlr->Projector(projector);
+
+    hlr->Add(barrel);
+
+    hlr->Update();
+    hlr->Hide();
+
+    HLRBRep_HLRToShape hlrShape(hlr);
+
+    TopoDS_Shape visibleEdges = hlrShape.VCompound();
+    TopoDS_Shape hiddenEdges = hlrShape.HCompound();
+
+    for (TopExp_Explorer exp(hiddenEdges, TopAbs_EDGE);
+        exp.More();
+        exp.Next())
+    {
+        TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+
+        BRepAdaptor_Curve curve(edge);
+
+        double first = curve.FirstParameter();
+        double last = curve.LastParameter();
+
+        svgFile << "<path d=\"";
+
+        bool firstPoint = true;
+
+        for (int i = 0; i <= 200; ++i)
+        {
+            double t =
+                first + (last - first) * i / 200.0;
+
+            gp_Pnt p;
+            curve.D0(t, p);
+
+            double x = p.X();
+            double y = p.Y();
+
+            if (firstPoint)
+            {
+                svgFile << "M " << x << " " << y;
+                firstPoint = false;
+            }
+            else
+            {
+                svgFile << " L " << x << " " << y;
+            }
+        }
+
+        svgFile << "\" fill=\"none\" stroke=\"black\" stroke-width=\"0.3\"/>\n";
+    }
+
+    // The axis
+    svgFile << "<!-- AXIS X -->\n";
+    svgFile << "<line x1=\"-5\" y1=\"0\" x2=\"" << (int)muzzleTaperLenght << "\" y2=\"0\" stroke=\"black\" stroke-width=\"0.3\" marker-end=\"url(#arrow)\"/>\n";
+    svgFile << "<text x=\"" << (int)muzzleTaperLenght << "\" y=\"5\" font-size=\"5\">X</text>\n";
+
+    svgFile << "<!-- AXIS Y -->\n";
+    svgFile << "<line x1=\"-5\" y1=\"0\" x2=\"-5\" y2=\"" << -(int)muzzleBarrelR1 - 5 << "\" stroke=\"black\" stroke-width=\"0.3\" marker-end=\"url(#arrow)\"/>\n";
+    svgFile << "<text x=\"3\" y=\"" << -(int)muzzleBarrelR1 - 5 << "\" font-size=\"5\">Y</text>\n";
+
+    double chamberTotalLenght = chamberMainConeLenght + chamberTaperLenght + chamberFirstCylinderLenght + chamberSecondCylinderLenght;
+    svgFile << "<!-- RIFLING LENGTH -->\n";
+    svgFile << "<line x1=\"" << (int)chamberTotalLenght << "\" y1=\"" << (int)muzzleBarrelR1 + 3 << "\" x2=\"" << (int)(chamberTotalLenght + riflingLenght) << "\" y2=\"" << (int)muzzleBarrelR1 + 3 << "\" "
+        << "stroke=\"black\" stroke-width=\"0.3\" marker-start=\"url(#arrow)\" marker-end=\"url(#arrow)\"/>\n";
+
+    svgFile << "<line x1=\"" << (int)chamberTotalLenght << "\" y1=\"" << (int)(riflingOuterRadius / 2.0) << "\" x2=\"" << (int)chamberTotalLenght << "\" y2=\"" << (int)muzzleBarrelR1 + 3 << "\" stroke=\"black\" stroke-width=\"0.2\"/>\n";
+    svgFile << "<line x1=\"" << (int)(chamberTotalLenght + riflingLenght) << "\" y1=\"" << (int)(riflingOuterRadius) << "\" x2=\"" << (int)(chamberTotalLenght + riflingLenght) << "\" y2=\"" << (int)muzzleBarrelR1 + 3 << "\" stroke=\"black\" stroke-width=\"0.2\"/>\n";
+
+    svgFile << "<text x=\"" << (int)(chamberTotalLenght + riflingLenght / 2.0) << "\" y=\"" << (int)muzzleBarrelR1 + 1 << "\" font-size=\"5\">" << (float)riflingLenght << " mm</text>\n";
+
+    svgFile << "<!-- CALIBER -->\n";
+    svgFile << "<line x1=\"" << (int)(chamberTotalLenght + riflingLenght + 5) << "\" y1=\"" << (int)(riflingOuterRadius) << "\" x2=\"" << (int)(chamberTotalLenght + riflingLenght + 5) << "\" y2=\"" << -(int)(riflingOuterRadius) << "\" "
+        << "stroke=\"black\" stroke-width=\"0.3\" marker-start=\"url(#arrow)\" marker-end=\"url(#arrow)\"/>\n";
+
+    svgFile << "<line x1=\"" << (int)(chamberTotalLenght + riflingLenght) << "\" y1=\"" << (int)(riflingOuterRadius) << "\" x2=\"" << (int)(chamberTotalLenght + riflingLenght + 5) << "\" y2=\"" << (int)(riflingOuterRadius) << "\" stroke=\"black\" stroke-width=\"0.2\" stroke-dasharray=\"2,2\"/>\n";
+    svgFile << "<line x1=\"" << (int)(chamberTotalLenght + riflingLenght) << "\" y1=\"" << -(int)(riflingOuterRadius) << "\" x2=\"" << (int)(chamberTotalLenght + riflingLenght + 5) << "\" y2=\"" << -(int)(riflingOuterRadius) << "\" stroke=\"black\" stroke-width=\"0.2\" stroke-dasharray=\"2,2\"/>\n";
+
+    svgFile << "<text x=\"" << (int)(chamberTotalLenght + riflingLenght + 6) << "\" y=\"0\" font-size=\"5\">" << caliberText << "</text>\n";
 
     svgFile << "</svg>";
     svgFile.close();
