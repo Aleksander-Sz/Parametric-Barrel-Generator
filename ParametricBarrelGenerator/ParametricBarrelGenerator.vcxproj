@@ -151,7 +151,23 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BarrelParameters.cpp" />
+    <ClCompile Include="ExportSTEP.cpp" />
+    <ClCompile Include="ExportSTL.cpp" />
+    <ClCompile Include="ExportSVG.cpp" />
+    <ClCompile Include="Geometry.cpp" />
+    <ClCompile Include="Input.cpp" />
     <ClCompile Include="ParametricBarrelGenerator.cpp" />
+    <ClCompile Include="Rifling.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="BarrelParameters.h" />
+    <ClInclude Include="ExportSTEP.h" />
+    <ClInclude Include="ExportSTL.h" />
+    <ClInclude Include="ExportSVG.h" />
+    <ClInclude Include="Geometry.h" />
+    <ClInclude Include="Input.h" />
+    <ClInclude Include="Rifling.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
